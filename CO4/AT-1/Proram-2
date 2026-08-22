@@ -1,0 +1,82 @@
+# Q2: DenseNet + PixelNet Inspired Semantic Segmentation
+
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+from tensorflow.keras.applications import DenseNet121
+
+IMG_SIZE = 128
+NUM_CLASSES = 4
+
+backbone = DenseNet121(
+    weights="imagenet",
+    include_top=False,
+    input_shape=(IMG_SIZE, IMG_SIZE, 3)
+)
+
+backbone.trainable = False
+
+inputs = layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
+
+x = backbone(inputs)
+
+# Decoder
+x = layers.Conv2D(256, 3, padding="same", activation="relu")(x)
+x = layers.UpSampling2D((2, 2))(x)
+
+x = layers.Conv2D(128, 3, padding="same", activation="relu")(x)
+x = layers.UpSampling2D((2, 2))(x)
+
+x = layers.Conv2D(64, 3, padding="same", activation="relu")(x)
+x = layers.UpSampling2D((2, 2))(x)
+
+x = layers.Conv2D(32, 3, padding="same", activation="relu")(x)
+x = layers.UpSampling2D((2, 2))(x)
+
+x = layers.Conv2D(16, 3, padding="same", activation="relu")(x)
+x = layers.UpSampling2D((2, 2))(x)
+
+# Pixel-wise classification
+outputs = layers.Conv2D(
+    NUM_CLASSES,
+    1,
+    activation="softmax"
+)(x)
+
+model = Model(inputs, outputs)
+
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model.summary()
+
+import numpy as np
+
+X_train = np.random.rand(
+    20, IMG_SIZE, IMG_SIZE, 3
+).astype(np.float32)
+
+Y_train = np.random.randint(
+    0,
+    NUM_CLASSES,
+    size=(20, IMG_SIZE, IMG_SIZE)
+)
+
+history = model.fit(
+    X_train,
+    Y_train,
+    epochs=5,
+    batch_size=4
+)
+
+prediction = model.predict(X_train[:1])
+
+segmentation = np.argmax(
+    prediction[0],
+    axis=-1
+)
+
+print("Segmentation output shape:", segmentation.shape)
+print("Pixel-wise prediction completed.")
