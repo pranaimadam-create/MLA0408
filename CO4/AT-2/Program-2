@@ -1,0 +1,217 @@
+# ============================================================
+# Q2: DENSENET + PIXEL-LEVEL SEGMENTATION
+# Smart City Road Scene Analysis
+# ============================================================
+
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+from tensorflow.keras.applications import DenseNet121
+
+print("=" * 60)
+print("Q2 - DENSENET + PIXEL-LEVEL SEGMENTATION")
+print("SMART CITY ROAD SCENE ANALYSIS")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# 1. Parameters
+# ------------------------------------------------------------
+
+IMG_HEIGHT = 256
+IMG_WIDTH = 256
+NUM_CLASSES = 5
+
+print("\nImage Size :", IMG_HEIGHT, "x", IMG_WIDTH)
+print("Classes    :", NUM_CLASSES)
+
+# Classes:
+# 0 - Background
+# 1 - Road
+# 2 - Pedestrian
+# 3 - Vehicle
+# 4 - Traffic Sign
+
+# ------------------------------------------------------------
+# 2. Load DenseNet121
+# ------------------------------------------------------------
+
+print("\nLoading pre-trained DenseNet121...")
+
+base_model = DenseNet121(
+    include_top=False,
+    weights="imagenet",
+    input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)
+)
+
+# Freeze DenseNet layers
+base_model.trainable = False
+
+print("DenseNet layers frozen.")
+
+# ------------------------------------------------------------
+# 3. Input
+# ------------------------------------------------------------
+
+inputs = layers.Input(
+    shape=(IMG_HEIGHT, IMG_WIDTH, 3)
+)
+
+# ------------------------------------------------------------
+# 4. Pre-processing
+# ------------------------------------------------------------
+
+x = tf.keras.applications.densenet.preprocess_input(
+    inputs
+)
+
+# ------------------------------------------------------------
+# 5. DenseNet Feature Extraction
+# ------------------------------------------------------------
+
+features = base_model(
+    x,
+    training=False
+)
+
+print("Feature extraction layer created.")
+
+# ------------------------------------------------------------
+# 6. Pixel-level segmentation decoder
+# ------------------------------------------------------------
+
+x = layers.Conv2D(
+    256,
+    kernel_size=3,
+    padding="same",
+    activation="relu"
+)(features)
+
+x = layers.UpSampling2D(
+    size=(2, 2)
+)(x)
+
+x = layers.Conv2D(
+    128,
+    kernel_size=3,
+    padding="same",
+    activation="relu"
+)(x)
+
+x = layers.UpSampling2D(
+    size=(2, 2)
+)(x)
+
+x = layers.Conv2D(
+    64,
+    kernel_size=3,
+    padding="same",
+    activation="relu"
+)(x)
+
+x = layers.UpSampling2D(
+    size=(2, 2)
+)(x)
+
+x = layers.Conv2D(
+    32,
+    kernel_size=3,
+    padding="same",
+    activation="relu"
+)(x)
+
+# ------------------------------------------------------------
+# 7. Restore original image size
+# ------------------------------------------------------------
+
+x = layers.Resizing(
+    IMG_HEIGHT,
+    IMG_WIDTH
+)(x)
+
+# ------------------------------------------------------------
+# 8. Pixel classification
+# ------------------------------------------------------------
+
+outputs = layers.Conv2D(
+    NUM_CLASSES,
+    kernel_size=1,
+    activation="softmax",
+    name="pixel_predictions"
+)(x)
+
+# ------------------------------------------------------------
+# 9. Create model
+# ------------------------------------------------------------
+
+model = Model(
+    inputs=inputs,
+    outputs=outputs
+)
+
+# ------------------------------------------------------------
+# 10. Compile model
+# ------------------------------------------------------------
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(
+        learning_rate=0.0001
+    ),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+# ------------------------------------------------------------
+# 11. Display model
+# ------------------------------------------------------------
+
+print("\nModel created successfully!")
+
+model.summary()
+
+# ------------------------------------------------------------
+# 12. Print architecture information
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("SEGMENTATION CLASSES")
+print("=" * 60)
+
+print("Class 0 : Background")
+print("Class 1 : Road")
+print("Class 2 : Pedestrian")
+print("Class 3 : Vehicle")
+print("Class 4 : Traffic Sign")
+
+# ------------------------------------------------------------
+# 13. Test the model with one sample image
+# ------------------------------------------------------------
+
+print("\nTesting model with sample input...")
+
+sample_image = tf.random.uniform(
+    shape=(1, IMG_HEIGHT, IMG_WIDTH, 3),
+    minval=0,
+    maxval=255,
+    dtype=tf.float32
+)
+
+prediction = model.predict(
+    sample_image,
+    verbose=0
+)
+
+print("Input shape     :", sample_image.shape)
+print("Output shape    :", prediction.shape)
+
+# ------------------------------------------------------------
+# 14. Save model
+# ------------------------------------------------------------
+
+model.save(
+    "densenet_pixel_segmentation.keras"
+)
+
+print("\nModel saved successfully!")
+
+print("\n" + "=" * 60)
+print("Q2 PROGRAM COMPLETED SUCCESSFULLY")
+print("=" * 60)
