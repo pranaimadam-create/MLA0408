@@ -1,0 +1,295 @@
+# ============================================================
+# Q5: AUTOMATIC VIDEO CAPTION GENERATION
+# Transfer Learning + LSTM Encoder-Decoder
+# ============================================================
+
+import numpy as np
+import tensorflow as tf
+
+from tensorflow.keras import layers, Model
+from tensorflow.keras.applications import MobileNetV2
+
+print("=" * 60)
+print("Q5 - AUTOMATIC VIDEO CAPTION GENERATION")
+print("TRANSFER LEARNING + LSTM ENCODER-DECODER")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# 1. Parameters
+# ------------------------------------------------------------
+
+IMG_SIZE = (224, 224)
+
+FEATURE_DIM = 1280
+
+VOCAB_SIZE = 5000
+
+EMBEDDING_DIM = 128
+
+LSTM_UNITS = 256
+
+MAX_SEQUENCE_LENGTH = 20
+
+print("\nImage Size          :", IMG_SIZE)
+print("Feature Dimension   :", FEATURE_DIM)
+print("Vocabulary Size     :", VOCAB_SIZE)
+print("LSTM Units          :", LSTM_UNITS)
+
+# ------------------------------------------------------------
+# 2. Transfer Learning CNN
+# ------------------------------------------------------------
+
+print("\nLoading pre-trained MobileNetV2...")
+
+cnn = MobileNetV2(
+    include_top=False,
+    weights="imagenet",
+    pooling="avg",
+    input_shape=(224, 224, 3)
+)
+
+# Freeze CNN layers
+cnn.trainable = False
+
+print("MobileNetV2 loaded successfully.")
+print("CNN layers frozen.")
+
+# ------------------------------------------------------------
+# 3. Frame Feature Extractor
+# ------------------------------------------------------------
+
+frame_input = layers.Input(
+    shape=(224, 224, 3),
+    name="video_frame"
+)
+
+x = tf.keras.applications.mobilenet_v2.preprocess_input(
+    frame_input
+)
+
+frame_features = cnn(
+    x,
+    training=False
+)
+
+feature_extractor = Model(
+    frame_input,
+    frame_features
+)
+
+print("\nFrame feature extractor created.")
+
+# ------------------------------------------------------------
+# 4. LSTM Encoder
+# ------------------------------------------------------------
+
+video_features = layers.Input(
+    shape=(None, FEATURE_DIM),
+    name="video_features"
+)
+
+encoder = layers.LSTM(
+    LSTM_UNITS,
+    return_sequences=True,
+    return_state=True,
+    name="lstm_encoder"
+)
+
+encoder_outputs, state_h, state_c = encoder(
+    video_features
+)
+
+print("LSTM Encoder created.")
+
+# ------------------------------------------------------------
+# 5. Caption Decoder Input
+# ------------------------------------------------------------
+
+caption_inputs = layers.Input(
+    shape=(MAX_SEQUENCE_LENGTH,),
+    dtype="int32",
+    name="caption_input"
+)
+
+# ------------------------------------------------------------
+# 6. Word Embedding
+# ------------------------------------------------------------
+
+embedding = layers.Embedding(
+    input_dim=VOCAB_SIZE,
+    output_dim=EMBEDDING_DIM,
+    mask_zero=True,
+    name="word_embedding"
+)(caption_inputs)
+
+# ------------------------------------------------------------
+# 7. LSTM Decoder
+# ------------------------------------------------------------
+
+decoder = layers.LSTM(
+    LSTM_UNITS,
+    return_sequences=True,
+    name="lstm_decoder"
+)
+
+decoder_outputs = decoder(
+    embedding,
+    initial_state=[
+        state_h,
+        state_c
+    ]
+)
+
+print("LSTM Decoder created.")
+
+# ------------------------------------------------------------
+# 8. Attention Mechanism
+# ------------------------------------------------------------
+
+attention = layers.AdditiveAttention(
+    name="visual_attention"
+)
+
+context = attention(
+    [
+        decoder_outputs,
+        encoder_outputs
+    ]
+)
+
+print("Attention mechanism created.")
+
+# ------------------------------------------------------------
+# 9. Combine Decoder and Visual Features
+# ------------------------------------------------------------
+
+combined = layers.Concatenate(
+    name="decoder_context"
+)(
+    [
+        decoder_outputs,
+        context
+    ]
+)
+
+# ------------------------------------------------------------
+# 10. Word Prediction
+# ------------------------------------------------------------
+
+word_outputs = layers.Dense(
+    VOCAB_SIZE,
+    activation="softmax",
+    name="word_prediction"
+)(combined)
+
+# ------------------------------------------------------------
+# 11. Create Complete Captioning Model
+# ------------------------------------------------------------
+
+caption_model = Model(
+    inputs=[
+        video_features,
+        caption_inputs
+    ],
+    outputs=word_outputs
+)
+
+# ------------------------------------------------------------
+# 12. Compile Model
+# ------------------------------------------------------------
+
+caption_model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+print("\nCaption generation model created successfully!")
+
+# ------------------------------------------------------------
+# 13. Display Model
+# ------------------------------------------------------------
+
+caption_model.summary()
+
+# ------------------------------------------------------------
+# 14. Create Sample Video Features
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("TESTING VIDEO CAPTIONING MODEL")
+print("=" * 60)
+
+# Example:
+# 10 video frames
+# Each frame has 1280 MobileNetV2 features
+
+NUM_FRAMES = 10
+
+sample_video_features = np.random.random(
+    (
+        1,
+        NUM_FRAMES,
+        FEATURE_DIM
+    )
+).astype("float32")
+
+sample_caption_input = np.random.randint(
+    1,
+    VOCAB_SIZE,
+    size=(
+        1,
+        MAX_SEQUENCE_LENGTH
+    )
+)
+
+print("\nVideo Feature Shape :",
+      sample_video_features.shape)
+
+print("Caption Input Shape :",
+      sample_caption_input.shape)
+
+# ------------------------------------------------------------
+# 15. Generate Prediction
+# ------------------------------------------------------------
+
+prediction = caption_model.predict(
+    [
+        sample_video_features,
+        sample_caption_input
+    ],
+    verbose=0
+)
+
+print("\nPrediction Shape    :",
+      prediction.shape)
+
+# ------------------------------------------------------------
+# 16. Get Predicted Words
+# ------------------------------------------------------------
+
+predicted_tokens = np.argmax(
+    prediction,
+    axis=-1
+)
+
+print("\nPredicted Token IDs:")
+print(predicted_tokens[0])
+
+# ------------------------------------------------------------
+# 17. Save Model
+# ------------------------------------------------------------
+
+caption_model.save(
+    "video_captioning_lstm_model.keras"
+)
+
+print("\nModel saved successfully!")
+
+# ------------------------------------------------------------
+# 18. Final message
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("Q5 PROGRAM COMPLETED SUCCESSFULLY")
+print("=" * 60)
