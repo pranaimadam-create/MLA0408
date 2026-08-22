@@ -1,0 +1,101 @@
+# Q5: Video Caption Generation
+# Transfer Learning + LSTM Encoder-Decoder
+
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+from tensorflow.keras.applications import MobileNetV2
+
+cnn = MobileNetV2(
+    weights="imagenet",
+    include_top=False,
+    pooling="avg"
+)
+
+cnn.trainable = False
+
+NUM_FRAMES = 10
+FEATURE_SIZE = 1280
+UNITS = 256
+VOCAB_SIZE = 1000
+MAX_CAPTION_LENGTH = 15
+
+video_input = layers.Input(
+    shape=(NUM_FRAMES, FEATURE_SIZE),
+    name="video_features"
+)
+
+encoder = layers.LSTM(
+    UNITS,
+    return_state=True
+)
+
+_, state_h, state_c = encoder(
+    video_input
+)
+
+caption_input = layers.Input(
+    shape=(MAX_CAPTION_LENGTH,),
+    name="caption_input"
+)
+
+embedding = layers.Embedding(
+    VOCAB_SIZE,
+    256
+)(caption_input)
+
+decoder = layers.LSTM(
+    UNITS,
+    return_sequences=True
+)
+
+decoder_output = decoder(
+    embedding,
+    initial_state=[state_h, state_c]
+)
+
+output = layers.Dense(
+    VOCAB_SIZE,
+    activation="softmax"
+)(decoder_output)
+
+model = Model(
+    [video_input, caption_input],
+    output
+)
+
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model.summary()
+
+import numpy as np
+
+X_video = np.random.rand(
+    50,
+    NUM_FRAMES,
+    FEATURE_SIZE
+).astype(np.float32)
+
+X_caption = np.random.randint(
+    0,
+    VOCAB_SIZE,
+    (50, MAX_CAPTION_LENGTH)
+)
+
+Y_caption = np.random.randint(
+    0,
+    VOCAB_SIZE,
+    (50, MAX_CAPTION_LENGTH, 1)
+)
+
+history = model.fit(
+    [X_video, X_caption],
+    Y_caption,
+    epochs=5,
+    batch_size=8
+)
+
+print("Video caption model training completed.")
