@@ -1,0 +1,215 @@
+# ============================================================
+# Q1: TRANSFER LEARNING FOR SKIN CANCER CLASSIFICATION
+# Using EfficientNetB0
+# ============================================================
+
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.applications import EfficientNetB0
+
+print("=" * 60)
+print("TRANSFER LEARNING - SKIN CANCER CLASSIFICATION")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# 1. Parameters
+# ------------------------------------------------------------
+
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 4
+NUM_CLASSES = 2
+
+print("\nImage Size:", IMG_SIZE)
+print("Number of Classes:", NUM_CLASSES)
+
+# ------------------------------------------------------------
+# 2. Create sample image dataset
+# ------------------------------------------------------------
+# This is only for demonstrating the program.
+# In a real project, replace this with a real dermoscopic dataset.
+
+print("\nCreating sample dataset...")
+
+NUM_TRAIN = 20
+NUM_TEST = 8
+
+x_train = tf.random.uniform(
+    (NUM_TRAIN, 224, 224, 3),
+    0,
+    255,
+    dtype=tf.float32
+)
+
+y_train = tf.random.uniform(
+    (NUM_TRAIN,),
+    0,
+    NUM_CLASSES,
+    dtype=tf.int32
+)
+
+x_test = tf.random.uniform(
+    (NUM_TEST, 224, 224, 3),
+    0,
+    255,
+    dtype=tf.float32
+)
+
+y_test = tf.random.uniform(
+    (NUM_TEST,),
+    0,
+    NUM_CLASSES,
+    dtype=tf.int32
+)
+
+train_ds = tf.data.Dataset.from_tensor_slices(
+    (x_train, y_train)
+).batch(BATCH_SIZE)
+
+test_ds = tf.data.Dataset.from_tensor_slices(
+    (x_test, y_test)
+).batch(BATCH_SIZE)
+
+print("Training images:", NUM_TRAIN)
+print("Testing images:", NUM_TEST)
+
+# ------------------------------------------------------------
+# 3. Data Augmentation
+# ------------------------------------------------------------
+
+data_augmentation = tf.keras.Sequential([
+    layers.RandomFlip("horizontal"),
+    layers.RandomRotation(0.10),
+    layers.RandomZoom(0.10),
+    layers.RandomContrast(0.10)
+])
+
+# ------------------------------------------------------------
+# 4. Load Pre-trained EfficientNetB0
+# ------------------------------------------------------------
+
+print("\nLoading pre-trained EfficientNetB0...")
+
+base_model = EfficientNetB0(
+    include_top=False,
+    weights="imagenet",
+    input_shape=(224, 224, 3)
+)
+
+# Freeze pre-trained layers
+base_model.trainable = False
+
+print("Pre-trained layers frozen.")
+
+# ------------------------------------------------------------
+# 5. Build Transfer Learning Model
+# ------------------------------------------------------------
+
+inputs = layers.Input(
+    shape=(224, 224, 3)
+)
+
+x = data_augmentation(inputs)
+
+x = base_model(
+    x,
+    training=False
+)
+
+x = layers.GlobalAveragePooling2D()(x)
+
+x = layers.Dropout(0.3)(x)
+
+outputs = layers.Dense(
+    NUM_CLASSES,
+    activation="softmax"
+)(x)
+
+model = models.Model(
+    inputs,
+    outputs
+)
+
+# ------------------------------------------------------------
+# 6. Compile Model
+# ------------------------------------------------------------
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(
+        learning_rate=0.001
+    ),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+print("\nModel created successfully!")
+
+model.summary()
+
+# ------------------------------------------------------------
+# 7. Train Classification Head
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("STAGE 1: TRAINING CLASSIFICATION HEAD")
+print("=" * 60)
+
+history = model.fit(
+    train_ds,
+    validation_data=test_ds,
+    epochs=2
+)
+
+# ------------------------------------------------------------
+# 8. Fine-Tuning
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("STAGE 2: FINE-TUNING")
+print("=" * 60)
+
+base_model.trainable = True
+
+# Freeze most layers
+for layer in base_model.layers[:-30]:
+    layer.trainable = False
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(
+        learning_rate=0.00001
+    ),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model.fit(
+    train_ds,
+    validation_data=test_ds,
+    epochs=2
+)
+
+# ------------------------------------------------------------
+# 9. Evaluate Model
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("MODEL EVALUATION")
+print("=" * 60)
+
+loss, accuracy = model.evaluate(test_ds)
+
+print("\nTest Loss     :", round(loss, 4))
+print("Test Accuracy :", round(accuracy * 100, 2), "%")
+
+# ------------------------------------------------------------
+# 10. Save Model
+# ------------------------------------------------------------
+
+model.save(
+    "skin_cancer_transfer_learning.keras"
+)
+
+print("\nModel saved successfully!")
+
+print("\n" + "=" * 60)
+print("PROGRAM EXECUTED SUCCESSFULLY")
+print("=" * 60)
