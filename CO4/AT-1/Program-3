@@ -1,0 +1,100 @@
+# Q3: Bidirectional RNN Encoder-Decoder
+# Multilingual Machine Translation Demo
+
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+
+VOCAB_SIZE = 1000
+EMBEDDING_DIM = 128
+UNITS = 128
+MAX_LENGTH = 10
+
+encoder_inputs = layers.Input(
+    shape=(MAX_LENGTH,),
+    name="encoder_input"
+)
+
+encoder_embedding = layers.Embedding(
+    VOCAB_SIZE,
+    EMBEDDING_DIM
+)(encoder_inputs)
+
+encoder_birnn = layers.Bidirectional(
+    layers.GRU(
+        UNITS,
+        return_sequences=True,
+        return_state=True
+    )
+)
+
+encoder_outputs, forward_state, backward_state = \
+    encoder_birnn(encoder_embedding)
+
+# Combine forward and backward states
+encoder_state = layers.Concatenate()(
+    [forward_state, backward_state]
+)
+
+decoder_inputs = layers.Input(
+    shape=(MAX_LENGTH,),
+    name="decoder_input"
+)
+
+decoder_embedding = layers.Embedding(
+    VOCAB_SIZE,
+    EMBEDDING_DIM
+)(decoder_inputs)
+
+decoder_gru = layers.GRU(
+    UNITS * 2,
+    return_sequences=True
+)
+
+decoder_outputs = decoder_gru(
+    decoder_embedding,
+    initial_state=encoder_state
+)
+
+decoder_outputs = layers.Dense(
+    VOCAB_SIZE,
+    activation="softmax"
+)(decoder_outputs)
+
+model = Model(
+    [encoder_inputs, decoder_inputs],
+    decoder_outputs
+)
+
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+model.summary()
+
+import numpy as np
+
+X_encoder = np.random.randint(
+    0, VOCAB_SIZE,
+    (100, MAX_LENGTH)
+)
+
+X_decoder = np.random.randint(
+    0, VOCAB_SIZE,
+    (100, MAX_LENGTH)
+)
+
+Y = np.random.randint(
+    0, VOCAB_SIZE,
+    (100, MAX_LENGTH, 1)
+)
+
+model.fit(
+    [X_encoder, X_decoder],
+    Y,
+    epochs=5,
+    batch_size=16
+)
+
+print("Bidirectional Encoder-Decoder training completed.")
