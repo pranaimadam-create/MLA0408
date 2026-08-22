@@ -1,0 +1,206 @@
+# ============================================================
+# Q3: BIDIRECTIONAL RNN ENCODER-DECODER
+# Multilingual Customer Service Translation
+# ============================================================
+
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+
+print("=" * 60)
+print("Q3 - BIDIRECTIONAL RNN ENCODER-DECODER")
+print("MULTILINGUAL CUSTOMER SERVICE TRANSLATION")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# 1. Parameters
+# ------------------------------------------------------------
+
+SOURCE_VOCAB_SIZE = 10000
+TARGET_VOCAB_SIZE = 10000
+
+EMBEDDING_DIM = 128
+RNN_UNITS = 128
+MAX_SEQUENCE_LENGTH = 20
+
+print("\nSource Vocabulary :", SOURCE_VOCAB_SIZE)
+print("Target Vocabulary :", TARGET_VOCAB_SIZE)
+print("Embedding Size    :", EMBEDDING_DIM)
+print("RNN Units         :", RNN_UNITS)
+
+# ------------------------------------------------------------
+# 2. Encoder Input
+# ------------------------------------------------------------
+
+encoder_inputs = layers.Input(
+    shape=(MAX_SEQUENCE_LENGTH,),
+    dtype="int32",
+    name="encoder_input"
+)
+
+# ------------------------------------------------------------
+# 3. Encoder Embedding
+# ------------------------------------------------------------
+
+encoder_embedding = layers.Embedding(
+    input_dim=SOURCE_VOCAB_SIZE,
+    output_dim=EMBEDDING_DIM,
+    mask_zero=True,
+    name="encoder_embedding"
+)(encoder_inputs)
+
+# ------------------------------------------------------------
+# 4. Bidirectional RNN Encoder
+# ------------------------------------------------------------
+
+encoder_outputs = layers.Bidirectional(
+    layers.GRU(
+        RNN_UNITS,
+        return_sequences=True
+    ),
+    name="bidirectional_encoder"
+)(encoder_embedding)
+
+print("\nBidirectional Encoder created.")
+
+# ------------------------------------------------------------
+# 5. Decoder Input
+# ------------------------------------------------------------
+
+decoder_inputs = layers.Input(
+    shape=(MAX_SEQUENCE_LENGTH,),
+    dtype="int32",
+    name="decoder_input"
+)
+
+# ------------------------------------------------------------
+# 6. Decoder Embedding
+# ------------------------------------------------------------
+
+decoder_embedding = layers.Embedding(
+    input_dim=TARGET_VOCAB_SIZE,
+    output_dim=EMBEDDING_DIM,
+    mask_zero=True,
+    name="decoder_embedding"
+)(decoder_inputs)
+
+# ------------------------------------------------------------
+# 7. Decoder RNN
+# ------------------------------------------------------------
+
+decoder_outputs = layers.GRU(
+    RNN_UNITS * 2,
+    return_sequences=True,
+    name="decoder_gru"
+)(decoder_embedding)
+
+# ------------------------------------------------------------
+# 8. Attention Mechanism
+# ------------------------------------------------------------
+
+attention_output = layers.AdditiveAttention(
+    name="attention"
+)([
+    decoder_outputs,
+    encoder_outputs
+])
+
+print("Attention mechanism created.")
+
+# ------------------------------------------------------------
+# 9. Combine Decoder + Attention
+# ------------------------------------------------------------
+
+combined = layers.Concatenate(
+    name="context_combination"
+)([
+    decoder_outputs,
+    attention_output
+])
+
+# ------------------------------------------------------------
+# 10. Output Layer
+# ------------------------------------------------------------
+
+outputs = layers.Dense(
+    TARGET_VOCAB_SIZE,
+    activation="softmax",
+    name="translation_output"
+)(combined)
+
+# ------------------------------------------------------------
+# 11. Create Complete Model
+# ------------------------------------------------------------
+
+model = Model(
+    inputs=[
+        encoder_inputs,
+        decoder_inputs
+    ],
+    outputs=outputs
+)
+
+# ------------------------------------------------------------
+# 12. Compile
+# ------------------------------------------------------------
+
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+# ------------------------------------------------------------
+# 13. Display Model
+# ------------------------------------------------------------
+
+print("\nModel created successfully!")
+
+model.summary()
+
+# ------------------------------------------------------------
+# 14. Test with Sample Input
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("TESTING MODEL")
+print("=" * 60)
+
+sample_encoder_input = tf.random.uniform(
+    shape=(1, MAX_SEQUENCE_LENGTH),
+    minval=1,
+    maxval=SOURCE_VOCAB_SIZE,
+    dtype=tf.int32
+)
+
+sample_decoder_input = tf.random.uniform(
+    shape=(1, MAX_SEQUENCE_LENGTH),
+    minval=1,
+    maxval=TARGET_VOCAB_SIZE,
+    dtype=tf.int32
+)
+
+prediction = model.predict(
+    [
+        sample_encoder_input,
+        sample_decoder_input
+    ],
+    verbose=0
+)
+
+print("\nEncoder Input Shape :", sample_encoder_input.shape)
+print("Decoder Input Shape :", sample_decoder_input.shape)
+print("Output Shape        :", prediction.shape)
+
+# ------------------------------------------------------------
+# 15. Save Model
+# ------------------------------------------------------------
+
+model.save(
+    "birnn_encoder_decoder_translation.keras"
+)
+
+print("\nModel saved successfully!")
+
+print("\n" + "=" * 60)
+print("Q3 PROGRAM COMPLETED SUCCESSFULLY")
+print("=" * 60)
